@@ -1,0 +1,29 @@
+From f5f451bb698a039b1d2b5c941067bf3df90fab57 Mon Sep 17 00:00:00 2001
+From: Guillaume Tucker <guillaume.tucker@arm.com>
+Date: Thu, 30 Oct 2014 15:11:22 +0000
+Subject: [PATCH 5/7] ARM: odroidxu3: enable CONFIG_PROFILING
+
+Enable CONFIG_PROFILING which is required to build the
+Gator out-of-tree driver.
+---
+ arch/arm/configs/odroidxu3_defconfig |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm/configs/odroidxu3_defconfig b/arch/arm/configs/odroidxu3_defconfig
+index b569c28..dd43284 100644
+--- a/arch/arm/configs/odroidxu3_defconfig
++++ b/arch/arm/configs/odroidxu3_defconfig
+@@ -174,8 +174,9 @@ CONFIG_COMPAT_BRK=y
+ # CONFIG_SLAB is not set
+ CONFIG_SLUB=y
+ # CONFIG_SLOB is not set
+-# CONFIG_PROFILING is not set
++CONFIG_PROFILING=y
+ CONFIG_TRACEPOINTS=y
++# CONFIG_OPROFILE is not set
+ CONFIG_HAVE_OPROFILE=y
+ # CONFIG_KPROBES is not set
+ # CONFIG_JUMP_LABEL is not set
+-- 
+1.7.9.5
+

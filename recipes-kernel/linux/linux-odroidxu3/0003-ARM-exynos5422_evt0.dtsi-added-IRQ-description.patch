@@ -1,0 +1,25 @@
+From 1bec50c44c2caef59d8748d427b4d5ec3dd53895 Mon Sep 17 00:00:00 2001
+From: Grzegorz Prajsner <grzegorz.prajsner@arm.com>
+Date: Thu, 29 Jan 2015 12:53:55 +0000
+Subject: [PATCH 3/7] ARM: exynos5422_evt0.dtsi: added IRQ description
+
++ add names for IRQs used by mali as required by r5p0-06rel0;
+---
+ arch/arm/boot/dts/exynos5422_evt0.dtsi |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm/boot/dts/exynos5422_evt0.dtsi b/arch/arm/boot/dts/exynos5422_evt0.dtsi
+index 389b227..1a8fc11 100755
+--- a/arch/arm/boot/dts/exynos5422_evt0.dtsi
++++ b/arch/arm/boot/dts/exynos5422_evt0.dtsi
+@@ -644,6 +644,7 @@
+ 		compatible = "arm,mali", "arm,malit6xx";
+ 		reg = <0x11800000 0x5000>;
+ 		interrupts = <0 219 0>, <0 74 0>, <0 117 0>;
++		interrupt-names = "JOB", "MMU", "GPU";
+ 		clocks = <&clock 10>, <&clock 2007>, <&clock 2002>,
+ 			<&clock 2056>, <&clock 4018>, <&clock 2070>,
+ 			<&clock 2080>, <&clock 1376>, <&clock 1>,
+-- 
+1.7.9.5
+

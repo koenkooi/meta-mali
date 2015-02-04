@@ -1,0 +1,120 @@
+From 3a3e64c5188b3abc1ee77fa71efa70d1e93ada1c Mon Sep 17 00:00:00 2001
+From: Grzegorz Prajsner <grzegorz.prajsner@arm.com>
+Date: Thu, 29 Jan 2015 17:41:32 +0000
+Subject: [PATCH 4/7] MALI: Build kernel driver as a module
+
+* switch kernel driver for mali to build as a kernel module;
+* change platform data to be built into module;
+* export functions needed by platform data;
+---
+ arch/arm/configs/odroidxu3_defconfig         |    2 +-
+ arch/arm/mach-exynos/asv-exynos.c            |    1 +
+ arch/arm/mach-exynos/bts-exynos5422.c        |    1 +
+ drivers/clk/clk.c                            |    1 +
+ drivers/gpu/arm/midgard/platform/5422/Kbuild |   31 +++++++++++++++++++-------
+ drivers/thermal/exynos_thermal.c             |    1 +
+ 6 files changed, 28 insertions(+), 9 deletions(-)
+
+diff --git a/arch/arm/configs/odroidxu3_defconfig b/arch/arm/configs/odroidxu3_defconfig
+index 30ee768..b569c28 100644
+--- a/arch/arm/configs/odroidxu3_defconfig
++++ b/arch/arm/configs/odroidxu3_defconfig
+@@ -2648,7 +2648,7 @@ CONFIG_DRM_UDL=m
+ #
+ # ARM GPU Configuration
+ #
+-CONFIG_MALI_MIDGARD=y
++CONFIG_MALI_MIDGARD=m
+ # CONFIG_MALI_GATOR_SUPPORT is not set
+ CONFIG_MALI_MIDGARD_DVFS=y
+ CONFIG_MALI_MIDGARD_RT_PM=y
+diff --git a/arch/arm/mach-exynos/asv-exynos.c b/arch/arm/mach-exynos/asv-exynos.c
+index 0a8432a..93de551 100644
+--- a/arch/arm/mach-exynos/asv-exynos.c
++++ b/arch/arm/mach-exynos/asv-exynos.c
+@@ -64,6 +64,7 @@ unsigned int get_match_volt(enum asv_type_id target_type, unsigned int target_fr
+ 	/* If there is no matched freq, return max supplied voltage */
+ 	return match_asv_info->max_volt_value;
+ }
++EXPORT_SYMBOL(get_match_volt);
+ 
+ unsigned int get_match_abb(enum asv_type_id target_type, unsigned int target_freq)
+ {
+diff --git a/arch/arm/mach-exynos/bts-exynos5422.c b/arch/arm/mach-exynos/bts-exynos5422.c
+index ae290ba..0f7625b 100644
+--- a/arch/arm/mach-exynos/bts-exynos5422.c
++++ b/arch/arm/mach-exynos/bts-exynos5422.c
+@@ -1006,6 +1006,7 @@ void bts_scen_update(enum bts_scen_type type, unsigned int val)
+ 
+ 	spin_unlock(&bts_lock);
+ }
++EXPORT_SYMBOL(bts_scen_update);
+ 
+ void bts_initialize(const char *pd_name, bool on)
+ {
+diff --git a/drivers/clk/clk.c b/drivers/clk/clk.c
+index 69e747a..0b00d19 100644
+--- a/drivers/clk/clk.c
++++ b/drivers/clk/clk.c
+@@ -636,6 +636,7 @@ bool __clk_is_enabled(struct clk *clk)
+ out:
+ 	return !!ret;
+ }
++EXPORT_SYMBOL_GPL(__clk_is_enabled);
+ 
+ static struct clk *__clk_lookup_subtree(const char *name, struct clk *clk)
+ {
+diff --git a/drivers/gpu/arm/midgard/platform/5422/Kbuild b/drivers/gpu/arm/midgard/platform/5422/Kbuild
+index 255a07a..f2047cb 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/Kbuild
++++ b/drivers/gpu/arm/midgard/platform/5422/Kbuild
+@@ -14,11 +14,26 @@
+ 
+ platform_name := $(shell echo $(CONFIG_MALI_PLATFORM_THIRDPARTY_NAME))
+ 
+-obj-y += mali_kbase_platform.o
+-obj-y += gpu_notifier.o
+-obj-y += gpu_control_exynos$(platform_name).o
+-obj-y += gpu_control.o
+-obj-y += gpu_dvfs_handler.o
+-obj-y += gpu_dvfs_governor.o
+-obj-y += gpu_custom_interface.o
+-obj-$(CONFIG_CPU_THERMAL_IPA) += gpu_ipa.o
++ifeq ($(CONFIG_MALI_MIDGARD),y)
++	obj-y += \
++		mali_kbase_platform.o \
++		gpu_notifier.o \
++		gpu_control_exynos$(platform_name).o \
++		gpu_control.o \
++		gpu_dvfs_handler.o \
++		gpu_dvfs_governor.o \
++		gpu_custom_interface.o
++	obj-$(CONFIG_CPU_THERMAL_IPA) += gpu_ipa.o
++else ifeq ($(CONFIG_MALI_MIDGARD),m)
++	SRC += \
++		$(MALI_PLATFORM_THIRDPARTY_DIR)/mali_kbase_platform.c \
++		$(MALI_PLATFORM_THIRDPARTY_DIR)/gpu_notifier.c \
++		$(MALI_PLATFORM_THIRDPARTY_DIR)/gpu_control_exynos$(platform_name).c \
++		$(MALI_PLATFORM_THIRDPARTY_DIR)/gpu_control.c \
++		$(MALI_PLATFORM_THIRDPARTY_DIR)/gpu_dvfs_handler.c \
++		$(MALI_PLATFORM_THIRDPARTY_DIR)/gpu_dvfs_governor.c \
++		$(MALI_PLATFORM_THIRDPARTY_DIR)/gpu_custom_interface.c
++	ifeq ($(CONFIG_CPU_THERMAL_IPA),y)
++		SRC += $(MALI_PLATFORM_THIRDPARTY_DIR)/gpu_ipa.c
++	endif
++endif
+diff --git a/drivers/thermal/exynos_thermal.c b/drivers/thermal/exynos_thermal.c
+index 1cdb5fe..2ba2e14 100644
+--- a/drivers/thermal/exynos_thermal.c
++++ b/drivers/thermal/exynos_thermal.c
+@@ -534,6 +534,7 @@ void exynos_gpu_call_notifier(enum gpu_noti_state_t cur_state)
+ 		gpu_old_state = cur_state;
+ 	}
+ }
++EXPORT_SYMBOL(exynos_gpu_add_notifier);
+ 
+ static void exynos_check_tmu_noti_state(int min_temp, int max_temp)
+ {
+-- 
+1.7.9.5
+

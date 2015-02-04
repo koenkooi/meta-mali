@@ -1,0 +1,428 @@
+From c161314132f444139891120dd25ccdca21b509b2 Mon Sep 17 00:00:00 2001
+From: Arkadiusz Sarwa <arkadiusz.sarwa@arm.com>
+Date: Fri, 24 Oct 2014 16:24:12 +0000
+Subject: [PATCH 2/7] MALI: platform/5422: fixed for r5p0-06rel0.
+
+* change kbase_device to struct kbase_device;
++ create mali_kbase_config_platform.h, this is required by r5p0;
+* move SOC_NAME to mali_kbase_config_platform.h, because max/min
+clock definitions are used outside of platform/5422;
+- remove unused define MALI_CUSTOMER_RELEASE;
+- remove midgard_type, it is not used anymore;
+---
+ drivers/gpu/arm/midgard/platform/5422/Kbuild       |    5 ----
+ .../gpu/arm/midgard/platform/5422/gpu_control.c    |    4 +--
+ .../gpu/arm/midgard/platform/5422/gpu_control.h    |   30 +++++---------------
+ .../midgard/platform/5422/gpu_control_exynos5422.c |    8 +++---
+ .../arm/midgard/platform/5422/gpu_dvfs_governor.c  |    1 +
+ .../arm/midgard/platform/5422/gpu_dvfs_handler.c   |    3 +-
+ .../arm/midgard/platform/5422/gpu_dvfs_handler.h   |    3 +-
+ drivers/gpu/arm/midgard/platform/5422/gpu_ipa.h    |    1 +
+ .../gpu/arm/midgard/platform/5422/gpu_notifier.c   |   10 +++----
+ .../gpu/arm/midgard/platform/5422/gpu_notifier.h   |    2 +-
+ .../platform/5422/mali_kbase_config_platform.h     |   29 +++++++++++++++++++
+ .../midgard/platform/5422/mali_kbase_platform.c    |   15 ++--------
+ .../midgard/platform/5422/mali_kbase_platform.h    |    3 +-
+ .../platform/5422/mali_kbase_platform_common.h     |   26 -----------------
+ 14 files changed, 58 insertions(+), 82 deletions(-)
+ create mode 100644 drivers/gpu/arm/midgard/platform/5422/mali_kbase_config_platform.h
+ delete mode 100644 drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform_common.h
+
+diff --git a/drivers/gpu/arm/midgard/platform/5422/Kbuild b/drivers/gpu/arm/midgard/platform/5422/Kbuild
+index aeda842..255a07a 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/Kbuild
++++ b/drivers/gpu/arm/midgard/platform/5422/Kbuild
+@@ -12,13 +12,8 @@
+ #
+ #
+ 
+-MALI_CUSTOMER_RELEASE = 1
+-SOC_NAME = 5422
+-
+ platform_name := $(shell echo $(CONFIG_MALI_PLATFORM_THIRDPARTY_NAME))
+ 
+-ccflags-$(CONFIG_MALI_T6XX) += -I$(src)/../../t6xx/kbase/src/common
+-
+ obj-y += mali_kbase_platform.o
+ obj-y += gpu_notifier.o
+ obj-y += gpu_control_exynos$(platform_name).o
+diff --git a/drivers/gpu/arm/midgard/platform/5422/gpu_control.c b/drivers/gpu/arm/midgard/platform/5422/gpu_control.c
+index cdcb704..af5c882 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/gpu_control.c
++++ b/drivers/gpu/arm/midgard/platform/5422/gpu_control.c
+@@ -209,7 +209,7 @@ static int gpu_set_clk_vol(struct kbase_device *kbdev, int clock, int voltage)
+ 	return 0;
+ }
+ 
+-int gpu_control_module_init(kbase_device *kbdev)
++int gpu_control_module_init(struct kbase_device *kbdev)
+ {
+ 	struct exynos_context *platform = (struct exynos_context *)kbdev->platform_context;
+ 	if (!platform)
+@@ -251,7 +251,7 @@ out:
+ 	return -EPERM;
+ }
+ 
+-void gpu_control_module_term(kbase_device *kbdev)
++void gpu_control_module_term(struct kbase_device *kbdev)
+ {
+ 	struct exynos_context *platform = (struct exynos_context *)kbdev->platform_context;
+ 	if (!platform)
+diff --git a/drivers/gpu/arm/midgard/platform/5422/gpu_control.h b/drivers/gpu/arm/midgard/platform/5422/gpu_control.h
+index 453c7a2..3ecc287 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/gpu_control.h
++++ b/drivers/gpu/arm/midgard/platform/5422/gpu_control.h
+@@ -18,6 +18,8 @@
+ #ifndef _GPU_CONTROL_H_
+ #define _GPU_CONTROL_H_
+ 
++#include "mali_kbase_config_platform.h"
++
+ typedef enum {
+ 	GPU_CONTROL_CLOCK_ON = 0,
+ 	GPU_CONTROL_CLOCK_OFF,
+@@ -34,24 +36,6 @@ typedef enum {
+ 	GPU_CONTROL_PM_QOS_RESET,
+ } gpu_pmqos_state;
+ 
+-/* mali_kbase_platform */
+-#if SOC_NAME == 5422
+-#ifdef CONFIG_SOC_EXYNOS5422_REV_0
+-#define G3D_MAX_FREQ    600000
+-#else
+-#define G3D_MAX_FREQ    600000
+-#endif /* CONFIG_SOC_EXYNOS5422_REV_0 */
+-#define G3D_MIN_FREQ    177000
+-#elif SOC_NAME == 5430
+-#define G3D_MAX_FREQ    600000
+-#define G3D_MIN_FREQ    160000
+-#elif SOC_NAME == 5260
+-#define G3D_MAX_FREQ    480000
+-#define G3D_MIN_FREQ    160000
+-#else
+-#error SOC_NAME should be specified.
+-#endif /* SOC_NAME */
+-
+ /* GPU NOTIFIER */
+ #if SOC_NAME == 5422
+ #define GPU_THROTTLING_90_95    480
+@@ -153,22 +137,22 @@ typedef enum {
+ 
+ #define MALI_T6XX_DEFAULT_CLOCK (MALI_DVFS_START_FREQ*MHZ)
+ 
+-struct exynos_pm_domain *gpu_get_pm_domain(kbase_device *kbdev);
++struct exynos_pm_domain *gpu_get_pm_domain(struct kbase_device *kbdev);
+ int get_cpu_clock_speed(u32 *cpu_clock);
+ int gpu_is_power_on(void);
+-int gpu_power_init(kbase_device *kbdev);
++int gpu_power_init(struct kbase_device *kbdev);
+ int gpu_is_clock_on(struct exynos_context *platform);
+ int gpu_clock_on(struct exynos_context *platform);
+ int gpu_clock_off(struct exynos_context *platform);
+ int gpu_set_clock(struct exynos_context *platform, int freq);
+-int gpu_clock_init(kbase_device *kbdev);
++int gpu_clock_init(struct kbase_device *kbdev);
+ int gpu_set_voltage(struct exynos_context *platform, int vol);
+ int gpu_regulator_enable(struct exynos_context *platform);
+ int gpu_regulator_disable(struct exynos_context *platform);
+ int gpu_regulator_init(struct exynos_context *platform);
+ 
+ int gpu_control_state_set(struct kbase_device *kbdev, gpu_control_state state, int param);
+-int gpu_control_module_init(kbase_device *kbdev);
+-void gpu_control_module_term(kbase_device *kbdev);
++int gpu_control_module_init(struct kbase_device *kbdev);
++void gpu_control_module_term(struct kbase_device *kbdev);
+ 
+ #endif /* _GPU_CONTROL_H_ */
+diff --git a/drivers/gpu/arm/midgard/platform/5422/gpu_control_exynos5422.c b/drivers/gpu/arm/midgard/platform/5422/gpu_control_exynos5422.c
+index 8b8a736..5d0dd62 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/gpu_control_exynos5422.c
++++ b/drivers/gpu/arm/midgard/platform/5422/gpu_control_exynos5422.c
+@@ -29,7 +29,7 @@
+ extern struct kbase_device *pkbdev;
+ 
+ #ifdef CONFIG_PM_RUNTIME
+-struct exynos_pm_domain *gpu_get_pm_domain(kbase_device *kbdev)
++struct exynos_pm_domain *gpu_get_pm_domain(struct kbase_device *kbdev)
+ {
+ 	struct platform_device *pdev = NULL;
+ 	struct device_node *np = NULL;
+@@ -69,7 +69,7 @@ int gpu_is_power_on(void)
+ 	return ((__raw_readl(EXYNOS5422_G3D_STATUS) & EXYNOS_INT_LOCAL_PWR_EN) == EXYNOS_INT_LOCAL_PWR_EN) ? 1 : 0;
+ }
+ 
+-int gpu_power_init(kbase_device *kbdev)
++int gpu_power_init(struct kbase_device *kbdev)
+ {
+ 	struct exynos_context *platform = (struct exynos_context *) kbdev->platform_context;
+ 
+@@ -243,7 +243,7 @@ err:
+ 	return ret;
+ }
+ 
+-static int gpu_get_clock(kbase_device *kbdev)
++static int gpu_get_clock(struct kbase_device *kbdev)
+ {
+ 	struct exynos_context *platform = (struct exynos_context *) kbdev->platform_context;
+ 	if (!platform)
+@@ -309,7 +309,7 @@ static int gpu_get_clock(kbase_device *kbdev)
+ 	return 0;
+ }
+ 
+-int gpu_clock_init(kbase_device *kbdev)
++int gpu_clock_init(struct kbase_device *kbdev)
+ {
+ 	int ret;
+ 	struct exynos_context *platform = (struct exynos_context *) kbdev->platform_context;
+diff --git a/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_governor.c b/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_governor.c
+index 277d90a..8d154f9 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_governor.c
++++ b/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_governor.c
+@@ -22,6 +22,7 @@
+ #include <mach/asv-exynos.h>
+ 
+ #include "mali_kbase_platform.h"
++#include "mali_kbase_config_platform.h"
+ #include "gpu_dvfs_handler.h"
+ #include "gpu_dvfs_governor.h"
+ #include "gpu_control.h"
+diff --git a/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_handler.c b/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_handler.c
+index 128d9be..bf25058 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_handler.c
++++ b/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_handler.c
+@@ -107,7 +107,8 @@ static void gpu_dvfs_event_proc(struct work_struct *q)
+ }
+ static DECLARE_WORK(gpu_dvfs_work, gpu_dvfs_event_proc);
+ 
+-int kbase_platform_dvfs_event(struct kbase_device *kbdev, u32 utilisation)
++int kbase_platform_dvfs_event(struct kbase_device *kbdev, u32 utilisation,
++	u32 util_gl_share, u32 util_cl_share[2])
+ {
+ #ifdef CONFIG_MALI_MIDGARD_DVFS
+ 	unsigned long flags;
+diff --git a/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_handler.h b/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_handler.h
+index 5b05433..b419c90 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_handler.h
++++ b/drivers/gpu/arm/midgard/platform/5422/gpu_dvfs_handler.h
+@@ -37,7 +37,8 @@ typedef enum {
+ 	GPU_HANDLER_DVFS_GET_VOLTAGE,
+ } gpu_dvfs_handler_command;
+ 
+-int kbase_platform_dvfs_event(struct kbase_device *kbdev, u32 utilisation);
++int kbase_platform_dvfs_event(struct kbase_device *kbdev, u32 utilisation,
++	u32 util_gl_share, u32 util_cl_share[2]);
+ int gpu_dvfs_handler_init(struct kbase_device *kbdev);
+ int gpu_dvfs_handler_deinit(struct kbase_device *kbdev);
+ int gpu_dvfs_handler_control(struct kbase_device *kbdev, gpu_dvfs_handler_command command, int param);
+diff --git a/drivers/gpu/arm/midgard/platform/5422/gpu_ipa.h b/drivers/gpu/arm/midgard/platform/5422/gpu_ipa.h
+index ef59a4a..5082a6f 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/gpu_ipa.h
++++ b/drivers/gpu/arm/midgard/platform/5422/gpu_ipa.h
+@@ -4,6 +4,7 @@
+ 
+ #include <mali_kbase.h>
+ #include "mali_kbase_platform.h"
++#include "mali_kbase_config_platform.h"
+ 
+ #if SOC_NAME == 5422
+ #define POWER_COEFF_GPU 59 /* all core on param */
+diff --git a/drivers/gpu/arm/midgard/platform/5422/gpu_notifier.c b/drivers/gpu/arm/midgard/platform/5422/gpu_notifier.c
+index 8d23c83..a4d71e9 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/gpu_notifier.c
++++ b/drivers/gpu/arm/midgard/platform/5422/gpu_notifier.c
+@@ -124,7 +124,7 @@ static int gpu_pm_notifier(struct notifier_block *nb, unsigned long event, void
+ 	return NOTIFY_OK;
+ }
+ 
+-static int gpu_power_on(kbase_device *kbdev)
++static int gpu_power_on(struct kbase_device *kbdev)
+ {
+ 	int ret_val;
+ 
+@@ -138,7 +138,7 @@ static int gpu_power_on(kbase_device *kbdev)
+ 	return ret_val;
+ }
+ 
+-static void gpu_power_off(kbase_device *kbdev)
++static void gpu_power_off(struct kbase_device *kbdev)
+ {
+ 	pm_schedule_suspend(kbdev->dev, RUNTIME_PM_DELAY_TIME);
+ }
+@@ -158,7 +158,7 @@ static void gpu_device_runtime_disable(struct kbase_device *kbdev)
+ 	pm_runtime_disable(kbdev->dev);
+ }
+ 
+-static int pm_callback_runtime_on(kbase_device *kbdev)
++static int pm_callback_runtime_on(struct kbase_device *kbdev)
+ {
+ 	struct exynos_context *platform = (struct exynos_context *) kbdev->platform_context;
+ 	if (!platform)
+@@ -175,7 +175,7 @@ static int pm_callback_runtime_on(kbase_device *kbdev)
+ 	return 0;
+ }
+ 
+-static void pm_callback_runtime_off(kbase_device *kbdev)
++static void pm_callback_runtime_off(struct kbase_device *kbdev)
+ {
+ 	GPU_LOG(DVFS_INFO, "g3d turn off\n");
+ 	gpu_control_state_set(kbdev, GPU_CONTROL_CLOCK_OFF, 0);
+@@ -198,7 +198,7 @@ kbase_pm_callback_conf pm_callbacks = {
+ };
+ #endif /* CONFIG_MALI_MIDGARD_RT_PM */
+ 
+-int gpu_notifier_init(kbase_device *kbdev)
++int gpu_notifier_init(struct kbase_device *kbdev)
+ {
+ 	struct exynos_context *platform = (struct exynos_context *)kbdev->platform_context;
+ 	if (!platform)
+diff --git a/drivers/gpu/arm/midgard/platform/5422/gpu_notifier.h b/drivers/gpu/arm/midgard/platform/5422/gpu_notifier.h
+index 98b7de5..abe91be 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/gpu_notifier.h
++++ b/drivers/gpu/arm/midgard/platform/5422/gpu_notifier.h
+@@ -17,7 +17,7 @@
+ #ifndef _GPU_NOTIFIER_H_
+ #define _GPU_NOTIFIER_H_
+ 
+-int gpu_notifier_init(kbase_device *kbdev);
++int gpu_notifier_init(struct kbase_device *kbdev);
+ void gpu_notifier_term(void);
+ 
+ #endif /* _GPU_NOTIFIER_H_ */
+diff --git a/drivers/gpu/arm/midgard/platform/5422/mali_kbase_config_platform.h b/drivers/gpu/arm/midgard/platform/5422/mali_kbase_config_platform.h
+new file mode 100644
+index 0000000..0c06cba
+--- /dev/null
++++ b/drivers/gpu/arm/midgard/platform/5422/mali_kbase_config_platform.h
+@@ -0,0 +1,29 @@
++/*
++ * Copyright 2011 by S.LSI. Samsung Electronics Inc.
++ * San#24, Nongseo-Dong, Giheung-Gu, Yongin, Korea
++ *
++ * Samsung SoC Mali-T604 DVFS driver
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software FoundatIon.
++ */
++
++#define SOC_NAME 5422
++
++#if SOC_NAME == 5422
++#ifdef CONFIG_SOC_EXYNOS5422_REV_0
++#define GPU_FREQ_KHZ_MAX    600000
++#else
++#define GPU_FREQ_KHZ_MAX    600000
++#endif /* CONFIG_SOC_EXYNOS5422_REV_0 */
++#define GPU_FREQ_KHZ_MIN    177000
++#elif SOC_NAME == 5430
++#define GPU_FREQ_KHZ_MAX    600000
++#define GPU_FREQ_KHZ_MIN    160000
++#elif SOC_NAME == 5260
++#define GPU_FREQ_KHZ_MAX    480000
++#define GPU_FREQ_KHZ_MIN    160000
++#else
++#error SOC_NAME should be specified.
++#endif /* SOC_NAME */
+diff --git a/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform.c b/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform.c
+index b4b325e..0691e90 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform.c
++++ b/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform.c
+@@ -42,7 +42,7 @@ int gpu_get_debug_level(void)
+ /**
+  ** Exynos5 hardware specific initialization
+  **/
+-static mali_bool kbase_platform_exynos5_init(kbase_device *kbdev)
++static mali_bool kbase_platform_exynos5_init(struct kbase_device *kbdev)
+ {
+ #ifdef CONFIG_MALI_MIDGARD_DVFS
+ 	unsigned long flags;
+@@ -104,7 +104,7 @@ sysfs_init_fail:
+ /**
+  ** Exynos5 hardware specific termination
+  **/
+-static void kbase_platform_exynos5_term(kbase_device *kbdev)
++static void kbase_platform_exynos5_term(struct kbase_device *kbdev)
+ {
+ 	struct exynos_context *platform;
+ 	platform = (struct exynos_context *) kbdev->platform_context;
+@@ -149,15 +149,6 @@ static kbase_attribute config_attributes[] = {
+ 		(uintptr_t)&platform_funcs
+ 	},
+ 	{
+-		KBASE_CONFIG_ATTR_GPU_FREQ_KHZ_MAX,
+-		G3D_MAX_FREQ
+-	},
+-
+-	{
+-		KBASE_CONFIG_ATTR_GPU_FREQ_KHZ_MIN,
+-		G3D_MIN_FREQ
+-	},
+-	{
+ 		KBASE_CONFIG_ATTR_JS_RESET_TIMEOUT_MS,
+ 		500 /* 500ms before cancelling stuck jobs */
+ 	},
+@@ -173,7 +164,6 @@ static kbase_attribute config_attributes[] = {
+ 
+ kbase_platform_config platform_config = {
+ 		.attributes                = config_attributes,
+-		.midgard_type              = KBASE_MALI_T604
+ };
+ 
+ kbase_platform_config platform_config;
+@@ -181,7 +171,6 @@ kbase_platform_config e5422_platform_config;
+ 
+ kbase_platform_config *kbase_get_platform_config(void) {
+                 e5422_platform_config.attributes = config_attributes;
+-                e5422_platform_config.midgard_type = KBASE_MALI_T604;
+                 return &e5422_platform_config;
+  
+ }
+diff --git a/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform.h b/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform.h
+index 704aa61..4f8ed05 100644
+--- a/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform.h
++++ b/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform.h
+@@ -17,7 +17,8 @@
+ 
+ #ifndef _GPU_PLATFORM_H_
+ #define _GPU_PLATFORM_H_
+-#define SOC_NAME 5422
++
++#include "mali_kbase_config_platform.h"
+ 
+ #define GPU_LOG(level, msg, args...) \
+ do { \
+diff --git a/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform_common.h b/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform_common.h
+deleted file mode 100644
+index b0d8e32..0000000
+--- a/drivers/gpu/arm/midgard/platform/5422/mali_kbase_platform_common.h
++++ /dev/null
+@@ -1,26 +0,0 @@
+-/*
+- *
+- * (C) COPYRIGHT ARM Limited. All rights reserved.
+- *
+- * This program is free software and is provided to you under the terms of the
+- * GNU General Public License version 2 as published by the Free Software
+- * Foundation, and any use by you of this program is subject to the terms
+- * of such GNU licence.
+- *
+- * A copy of the licence is included with the program, and can also be obtained
+- * from Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+- * Boston, MA  02110-1301, USA.
+- *
+- */
+-
+-
+-
+-/**
+- * @brief Entry point to transfer control to a platform for early initialization
+- *
+- * This function is called early on in the initialization during execution of
+- * @ref kbase_driver_init.
+- *
+- * @return Zero to indicate success non-zero for failure.
+- */
+-int kbase_platform_early_init(void);
+-- 
+1.7.9.5
+
