@@ -1,0 +1,71 @@
+ARM Mali BSP layer
+==================
+
+These recipes provide a BSP layer for ARM development platforms with
+ARM Mali technology enabled.  To build a minimal Poky image for
+ODROID-XU3 which features a Mali-T62x GPU.
+
+* Get Poky meta-data with:
+    git clone -b daisy git://git.yoctoproject.org/poky.git
+
+* Prepare the build environment:
+    cd poky && source oe-init-build-env
+
+* Add path to meta-mali in poky/build/conf/bblayers.conf
+
+* Set MACHINE to odroidxu3 in poky/build/conf/local.conf
+
+* Build a basic image with:
+    bitbake core-image-minimal
+
+* If you get this error:
+    Please use a umask which allows a+rx and u+rwx
+
+  then run this command and try again:
+    umask 022
+
+* When the build is complete, a full SD card image will be ready to be
+  written to an SD card to boot the ODROID-XU3:
+    tmp/deploy/images/odroidxu3/core-image-minimal-odroidxu3.sdcard
+
+  For example, if your SD card device is /dev/sdX (adjust as appropriate):
+    dd if=core-image-minimal-odroidxu3.sdcard of=/dev/sdX bs=1M
+
+
+ARM Mali GPU User-side drivers
+==============================
+
+The recipes-graphics directory contains recipes to download user-side
+Mali GPU proprietary binary drivers which are distributed under an
+End-User License Agreement (EULA).  This agreement needs to be read
+and accepted prior to running the recipes.  The full text of the EULA
+is included in the EULA file.
+
+Standard binary user-side drivers are automatically downloaded by the
+recipes from the official website:
+
+    http://malideveloper.arm.com/develop-for-mali/drivers/
+
+To add the user-side binary to your build, add this line to local.conf:
+
+    IMAGE_INSTALL_append = "mali-userspace-t62x"
+
+To show that you have read and accepted the terms of the EULA and
+enable the recipes, add this line to local.conf:
+
+    ACCEPT_MALI_EULA = "1"
+
+Because the Mali recipes provide EGL and OpenGL ES but not OpenGL,
+there is a conflict with the Mesa recipes which are needed for X11 and
+Wayland.  So the current Mali GPU support in Yocto does not work with
+windowing systems but only "directfb" mode (a.k.a "fbdev").  The
+core-image-minimal includes X11, so to convert it to "directfb" you
+will also need to add these two lines to local.conf:
+
+    DISTRO_FEATURES_append = " directfb sysvinit"
+    DISTRO_FEATURES_remove = " x11 wayland"
+
+With these modifications done in local.conf, building the image again
+will produce a new SD card image with the Mali GPU drivers enabled:
+
+    bitbake core-image-minimal
